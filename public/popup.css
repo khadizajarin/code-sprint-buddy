@@ -1,0 +1,98 @@
+/* popup.css */
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: sans-serif;
+}
+
+.popup-container {
+    width: 250px;
+    /* padding: 20px; */
+    text-align: center;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    min-width: 250px;
+    gap: 10px;
+    /* border-radius: 8px; */
+    transition: background-color 0.3s, color 0.3s;
+  }
+  
+  .title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  
+  .timer {
+    font-size: 32px;
+    font-weight: bold;
+    margin: 15px 0;
+  }
+  
+  button {
+    background-color: #4caf50;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    font-size: 14px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  button:hover {
+    background-color: #45a049;
+  }
+  
+  /* Light Theme */
+  .popup-container.light {
+    background-color: #ffffff;
+    color: #333;
+  }
+  
+  /* Dark Theme */
+  .popup-container.dark {
+    background-color: #1e1e1e;
+    color: #eee;
+  }
+  
+  .timer {
+    font-size: 2rem;
+    margin: 10px 0;
+  }
+  
+  .start-btn,
+  .theme-toggle {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  
+  /* Button colors for light theme */
+  .popup-container.light .start-btn {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .popup-container.light .theme-toggle {
+    background-color: #f0f0f0;
+    color: #333;
+  }
+  
+  /* Button colors for dark theme */
+  .popup-container.dark .start-btn {
+    background-color: #4e9fff;
+    color: white;
+  }
+  
+  .popup-container.dark .theme-toggle {
+    background-color: #333;
+    color: #eee;
+  }
+  
