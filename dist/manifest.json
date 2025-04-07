@@ -25,9 +25,10 @@
       "js": ["content.js"]
     }
   ],
-  "web_accessible_resources": [
-    "notification.mp3"
-  ],
+ "web_accessible_resources": [
+  "notification.mp3",
+  "sound.html"
+],
   "host_permissions": [
     "http://*/*",
     "https://*/*"
