@@ -26,8 +26,7 @@
     }
   ],
   "web_accessible_resources": [
-  "notification.mp3",
-  "sound.html"
+  "notification.mp3"
 ],
   "host_permissions": [
     "http://*/*",

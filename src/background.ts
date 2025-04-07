@@ -1,29 +1,32 @@
 let sprintStartTime: number | null = null;
-let sprintDuration = 1 * 60 * 1000; // 20 minutes in milliseconds
+let sprintDuration = 1 * 60 * 1000; // 1 minute for testing
 let sprintTimer: number | null = null;
 
+// ✅ Function to play sound directly in background
+const playSound = () => {
+  const audio = new Audio(chrome.runtime.getURL("notification.mp3"));
+  audio.play().catch((err) => {
+    console.warn("Failed to play audio in background:", err);
+  });
+};
 
-// function endSprint() {
-//   chrome.notifications.create({
-//     type: "basic",
-//     iconUrl: "icons/icon48.png",
-//     title: "Sprint Finished!",
-//     message: "20-minute sprint complete! Time to take a break. 🧘‍♀️",
-//   });
+function endSprint() {
+  chrome.notifications.create({
+    type: "basic",
+    iconUrl: "icons/icon48.png",
+    title: "Sprint Finished!",
+    message: "20-minute sprint complete! Time to take a break. 🧘‍♀️",
+  });
 
-//   // Notify content script to play sound
-//   chrome.tabs.query({}, (tabs) => {
-//     tabs.forEach((tab) => {
-//       if (tab.id) {
-//         chrome.tabs.sendMessage(tab.id, { type: "PLAY_SOUND" });
-//       }
-//     });
-//   });
+  // ✅ Play sound directly
+  playSound();
 
-  
-//   sprintStartTime = null;
-//   sprintTimer = null;
-// }
+  // Optional: Notify popup if it's open
+  chrome.runtime.sendMessage({ type: "SPRINT_ENDED" });
+
+  sprintStartTime = null;
+  sprintTimer = null;
+}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "START") {
@@ -41,18 +44,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         message: "Your 20-minute coding sprint has begun. Let’s go! 🚀",
       });
 
-      // Sound
-      chrome.tabs.query({}, (tabs) => {
-        tabs.forEach((tab) => {
-          if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, { type: "PLAY_SOUND" });
-          }
-        });
-      });
+      sendResponse({ status: "started" });
     }
-    
-
-    sendResponse({ status: "started" });
   }
 
   if (request.type === "STATUS") {
@@ -63,32 +56,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else {
       sendResponse({ running: false, timeLeft: sprintDuration / 1000 });
     }
-    return true; // Indicate async response
+    return true; // keep message channel open
   }
 });
-
-function playNotificationSound() {
-  chrome.windows.create({
-    url: chrome.runtime.getURL("sound.html"),
-    type: "popup",
-    width: 1,
-    height: 1,
-    left: 0,
-    top: 0,
-    focused: false
-  });
-}
-
-function endSprint() {
-  chrome.notifications.create({
-    type: "basic",
-    iconUrl: "icons/icon48.png",
-    title: "Sprint Finished!",
-    message: "20-minute sprint complete! Time to take a break. 🧘‍♀️",
-  });
-
-  playNotificationSound(); // 👈 plays sound in a hidden popup
-
-  sprintStartTime = null;
-  sprintTimer = null;
-}

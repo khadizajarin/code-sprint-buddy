@@ -42,3 +42,9 @@ if (window.location.hostname === 'localhost') {
 }
 
 
+chrome.runtime.onMessage.addListener((request) => {
+  if (request.type === "PLAY_SOUND") {
+    const audio = new Audio(chrome.runtime.getURL("notification.mp3"));
+    audio.play().catch((err) => console.warn("Audio play failed:", err));
+  }
+});

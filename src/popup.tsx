@@ -24,6 +24,22 @@ const Popup = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // 🔊 Listen for sprint end
+  useEffect(() => {
+    const handleMessage = (request: any) => {
+      if (request.type === "SPRINT_ENDED") {
+        const audio = new Audio(chrome.runtime.getURL("notification.mp3"));
+        audio.play().catch((err) => console.warn("Popup sound play failed:", err));
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, []);
+
   const handleStartPause = () => {
     if (!running) {
       chrome.runtime.sendMessage({ type: "START" }, () => {
