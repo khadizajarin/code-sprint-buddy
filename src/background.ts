@@ -59,3 +59,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // keep message channel open
   }
 });
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "PLAY_SOUND") {
+    const audio = new Audio(chrome.runtime.getURL("notification.mp3"));
+    audio.play().catch((err) => console.warn("Audio play failed:", err));
+  }
+});
