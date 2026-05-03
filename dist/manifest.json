@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "SprintBuddy",
-  "version": "1.0.0",
-  "description": "Configurable coding sprint timer with break reminders and task notifications.",
+  "version": "2.0.0",
+  "description": "Persistent coding sprint timer with tasks, reminders, and streak tracking.",
 
   "permissions": [
     "notifications",
     "storage",
-    "tabs"
+    "tabs",
+    "alarms"
   ],
 
   "host_permissions": [

@@ -4,8 +4,9 @@
   chrome.runtime.onMessage.addListener((request) => {
     if (request.type === "PLAY_SOUND") {
       const audio = new Audio(chrome.runtime.getURL("notification.mp3"));
-      audio.volume = 0.8;
-      audio.play().catch((err) => console.warn("[SprintBuddy] Audio play failed:", err));
+      audio.volume = 0.75;
+      audio.play().catch(() => {
+      });
     }
   });
 })();

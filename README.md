@@ -1,92 +1,80 @@
-# ⚡ SprintBuddy — Chrome Extension
+# ⚡ SprintBuddy v2 — Chrome Extension
 
-A clean, configurable coding sprint timer with break reminders.
+## What's new in v2
 
-## Features
-- **Configurable durations**: 15, 25, 30, 45, or 60 minutes
-- **Circular countdown ring** with live animation
-- **Desktop notification + sound** when sprint ends
-- **Task reminders**: set a reminder at a specific clock time
-- **Dark / Light theme**
+| Feature | Details |
+|---|---|
+| **Persistent timer** | Uses `chrome.storage.local` + `chrome.alarms` — survives popup close, SW sleep, browser restart |
+| **Sprint streaks** | Dot counter tracks sprints completed today, resets each day |
+| **Task list** | Add/check-off/delete tasks, stored in Chrome storage, resets done status daily |
+| **Reminders** | Alarm-based reminders that fire even when popup is closed, stored persistently |
+| **Break tips** | Random break suggestions shown in notification when sprint ends |
 
-## Project Structure
+## File structure
 
 ```
 sprint-extension/
-├── manifest.json       ← Chrome extension config (MV3)
-├── popup.html          ← Popup entry point
-├── popup.tsx           ← React popup UI
-├── popup.css           ← Styles
-├── background.ts       ← Service worker (timer logic)
-├── content.ts          ← Content script (audio playback)
-├── notification.mp3    ← Your sound file (add manually)
+├── manifest.json      ← MV3, includes "alarms" permission
+├── popup.html
+├── popup.tsx          ← React UI (Sprint · Tasks · Reminders tabs)
+├── popup.css
+├── background.ts      ← Service worker with chrome.alarms + chrome.storage
+├── content.ts         ← Audio playback in page context
+├── notification.mp3   ← Add your own sound file here
 └── icons/
     ├── icon16.png
     ├── icon48.png
     └── icon128.png
 ```
 
-## Setup
+## Setup & Build
 
 ### 1. Install dependencies
-
 ```bash
 npm init -y
 npm install react react-dom
 npm install -D typescript @types/chrome @types/react @types/react-dom esbuild
 ```
 
-### 2. Build script (package.json)
-
+### 2. Add to package.json scripts
 ```json
 {
   "scripts": {
-    "build": "npm run build:popup && npm run build:bg && npm run build:content",
-    "build:popup":   "esbuild popup.tsx   --bundle --outfile=dist/popup.js   --loader:.css=css",
-    "build:bg":      "esbuild background.ts --bundle --outfile=dist/background.js --platform=browser",
-    "build:content": "esbuild content.ts    --bundle --outfile=dist/content.js",
-    "watch": "npm run build -- --watch"
+    "build": "npm run build:bg && npm run build:content && npm run build:popup && npm run copy",
+    "build:bg":      "esbuild background.ts --bundle --platform=browser --outfile=dist/background.js",
+    "build:content": "esbuild content.ts --bundle --outfile=dist/content.js",
+    "build:popup":   "esbuild popup.tsx --bundle --loader:.css=local-css --outfile=dist/popup.js",
+    "copy": "cp popup.html popup.css manifest.json notification.mp3 dist/ && cp -r icons dist/",
+    "watch": "npm run build:bg -- --watch & npm run build:content -- --watch & npm run build:popup -- --watch"
   }
 }
 ```
 
-### 3. Build
+> **CSS note**: If `--loader:.css=local-css` gives an error with your esbuild version, use `--loader:.css=css` instead, then manually copy `popup.css` to `dist/`.
 
+### 3. Build
 ```bash
+mkdir -p dist
 npm run build
 ```
 
-This outputs to `dist/`. Copy `manifest.json`, `popup.html`, `popup.css`,
-`notification.mp3`, and the `icons/` folder into `dist/` as well.
-
 ### 4. Load in Chrome
+1. `chrome://extensions` → Enable **Developer mode**
+2. **Load unpacked** → select the `dist/` folder
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked** → select the `dist/` folder
+## Why the timer now persists
 
-### 5. Add your sound
+**Old problem**: The timer lived only in JS variables. When the popup closed, the service worker eventually went to sleep and the variables were gone.
 
-Drop any `notification.mp3` into the `dist/` folder.
-Free sounds: [freesound.org](https://freesound.org) or [mixkit.co](https://mixkit.co/free-sound-effects/)
+**Fix**: Two changes:
+1. `chrome.storage.local` stores `{ running, startedAt, totalDuration, sprintsToday, lastSprintDate }`. Time left is always *computed* from `Date.now() - startedAt`, never stored as a decrementing number.
+2. `chrome.alarms.create("sprintEnd", { delayInMinutes: N })` schedules the end event via Chrome's alarm API, which survives SW sleep and fires even if the popup is closed.
 
----
+## Reminder storage
 
-## Why one `onMessage` listener in background.ts?
+Reminders are stored as a JSON array in `chrome.storage.local`. Each reminder:
+- Gets its own named alarm: `reminder-<id>`
+- Is marked `fired: true` after it fires
+- Is auto-cleaned after 24 hours
 
-Your original code registered **3 separate** `chrome.runtime.onMessage.addListener` calls
-and had **two independent timer systems** (setTimeout + setInterval) that could conflict.
-The rewrite uses:
-- **One listener** that handles all message types with `if (type === "...")` branches
-- **One timer system** (setInterval ticking every second, computing time from `Date.now() - startedAt`)
-- **Computed time** instead of a decrementing variable — survives service worker restarts
-
-## Key Architecture Decisions
-
-| Problem | Old code | Fixed |
-|---|---|---|
-| Duplicate listeners | 3× `addListener` | Single listener |
-| Conflicting timers | `setTimeout` + `setInterval` | Single `setInterval` |
-| Audio in SW | `new Audio()` in background | Delegated to content script |
-| Fixed 20-min duration | Hardcoded | Configurable via presets |
-| SW restart resilience | Lost state | Recomputes from `startedAt` |
+This means reminders survive browser restarts and popup closes.
