@@ -4,12 +4,12 @@
   "main": "esbuild.config.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node esbuild.config.js"
+    "build": "esbuild popup.tsx --bundle --outfile=dist/popup.js && esbuild background.ts --bundle --outfile=dist/background.js && esbuild content.ts --bundle --outfile=dist/content.js && cp popup.html popup.css notification.mp3 manifest.json dist/ && cp -r icons dist/"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "A clean, configurable coding sprint timer with break reminders.",
   "dependencies": {
     "esbuild-copy-static-files": "^0.1.0",
     "react": "^18.3.1",
@@ -17,10 +17,10 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.0.313",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.1",
-    "esbuild": "^0.25.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "esbuild": "^0.25.12",
     "esbuild-plugin-copy": "^2.1.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.3"
   }
 }

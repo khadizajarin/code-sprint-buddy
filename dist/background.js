@@ -1,2 +1,98 @@
-"use strict";(()=>{var t=null,a=1*60*1e3,s=null,c=()=>{new Audio(chrome.runtime.getURL("notification.mp3")).play().catch(i=>{console.warn("Failed to play audio in background:",i)})};function u(){chrome.notifications.create({type:"basic",iconUrl:"icons/icon48.png",title:"Sprint Finished!",message:"20-minute sprint complete! Time to take a break. \u{1F9D8}\u200D\u2640\uFE0F"}),c(),chrome.runtime.sendMessage({type:"SPRINT_ENDED"}),t=null,s=null}chrome.runtime.onMessage.addListener((e,i,n)=>{if(e.type==="START"&&(t||(t=Date.now(),s=setTimeout(()=>{u()},a),chrome.notifications.create({type:"basic",iconUrl:"icons/icon48.png",title:"Sprint Started!",message:"Your 20-minute coding sprint has begun. Let\u2019s go! \u{1F680}"}),n({status:"started"}))),e.type==="STATUS"){if(t){let r=Date.now()-t,o=Math.max(0,Math.floor((a-r)/1e3));n({running:!0,timeLeft:o})}else n({running:!1,timeLeft:a/1e3});return!0}});chrome.runtime.onMessage.addListener((e,i,n)=>{e.type==="PLAY_SOUND"&&new Audio(chrome.runtime.getURL("notification.mp3")).play().catch(o=>console.warn("Audio play failed:",o))});})();
-//# sourceMappingURL=background.js.map
+"use strict";
+(() => {
+  // background.ts
+  var state = {
+    running: false,
+    timeLeft: 25 * 60,
+    totalDuration: 25 * 60,
+    startedAt: null
+  };
+  var tickInterval = null;
+  function playSound() {
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach((tab) => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, { type: "PLAY_SOUND" }).catch(() => {
+          });
+        }
+      });
+    });
+  }
+  function sendNotification(title, message) {
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon48.png",
+      title,
+      message
+    });
+  }
+  function stopTick() {
+    if (tickInterval !== null) {
+      clearInterval(tickInterval);
+      tickInterval = null;
+    }
+  }
+  function startTick() {
+    stopTick();
+    tickInterval = setInterval(() => {
+      if (!state.running) return;
+      state.timeLeft = Math.max(
+        0,
+        state.totalDuration - Math.floor((Date.now() - (state.startedAt ?? Date.now())) / 1e3)
+      );
+      if (state.timeLeft === 0) {
+        endSprint();
+      }
+    }, 1e3);
+  }
+  function endSprint() {
+    stopTick();
+    state.running = false;
+    state.startedAt = null;
+    sendNotification(
+      "\u{1F389} Sprint Complete!",
+      `Great work! Your ${Math.round(state.totalDuration / 60)}-minute sprint is done. Time for a break! \u{1F9D8}\u200D\u2640\uFE0F`
+    );
+    playSound();
+    state.timeLeft = state.totalDuration;
+    chrome.runtime.sendMessage({ type: "SPRINT_ENDED" }).catch(() => {
+    });
+  }
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    const { type } = message;
+    if (type === "START") {
+      if (!state.running) {
+        const durationMinutes = message.duration ?? 25;
+        state.totalDuration = durationMinutes * 60;
+        state.timeLeft = state.totalDuration;
+        state.startedAt = Date.now();
+        state.running = true;
+        startTick();
+        sendNotification(
+          "\u{1F680} Sprint Started!",
+          `Your ${durationMinutes}-minute coding sprint has begun. Let's go!`
+        );
+      }
+      sendResponse({ success: true, state });
+      return true;
+    }
+    if (type === "STOP") {
+      stopTick();
+      state.running = false;
+      state.startedAt = null;
+      state.timeLeft = state.totalDuration;
+      sendResponse({ success: true, state });
+      return true;
+    }
+    if (type === "STATUS") {
+      sendResponse({ ...state });
+      return true;
+    }
+    if (type === "TASK_REMINDER") {
+      sendNotification("\u23F0 Task Reminder", `${message.taskName}`);
+      playSound();
+      sendResponse({ success: true });
+      return true;
+    }
+  });
+})();

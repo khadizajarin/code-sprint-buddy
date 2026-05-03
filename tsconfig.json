@@ -113,7 +113,7 @@
     "lib": ["DOM", "ES2020"],
     "jsx": "react",
     //"module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     //"esModuleInterop": true,
@@ -123,5 +123,5 @@
     "types": ["chrome"],
     "outDir": "dist"                              /* Skip type checking all .d.ts files. */
   },
-  "include": ["src", "src/background.ts", "src/popup.tsx"]
+  "include": ["src", "background.ts", "popup.tsx", "content.ts","types.d.ts"]
 }
