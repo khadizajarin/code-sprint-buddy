@@ -237,10 +237,7 @@ ul     { list-style: none; }
 }
 
 /* ── Presets ────────────────────────────────────────────────── */
-.presets {
-  display: flex;
-  gap: 6px;
-}
+/* .presets moved to scroll wrapper below */
 
 .chip {
   padding: 5px 12px;
@@ -395,3 +392,227 @@ ul     { list-style: none; }
   color: var(--accent);
 }
 .reminder-fired .reminder-time { color: var(--muted); }
+
+/* ── Horizontal scrollable presets ── */
+.presets-scroll {
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  /* hide scrollbar but keep scroll */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.presets-scroll::-webkit-scrollbar { display: none; }
+
+.presets {
+  display: flex;
+  gap: 6px;
+  width: max-content; /* don't wrap — let it overflow for scroll */
+  padding: 2px 2px;
+}
+
+/* ── Time dropdowns ── */
+.time-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.time-select {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+  transition: border-color 0.15s;
+}
+.time-select:focus { border-color: var(--accent); outline: none; }
+
+.time-period { flex: 0.7; }
+
+.time-colon {
+  font-family: 'DM Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ── Toggle switch ── */
+.toggle {
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.toggle-on { background: var(--accent); }
+.toggle-knob {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+  display: block;
+}
+.toggle-on .toggle-knob { left: 21px; }
+
+/* ── Auto-break row ── */
+.autobreak-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.toggle-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  flex: 1;
+}
+.break-chips {
+  display: flex;
+  gap: 4px;
+}
+.chip-sm {
+  padding: 3px 9px;
+  font-size: 11px;
+}
+
+/* ── Break ring color ── */
+.ring-break {
+  stroke: var(--accent2, #60a5fa) !important;
+  filter: drop-shadow(0 0 7px rgba(96,165,250,0.4));
+  animation: pulse-blue 3s ease-in-out infinite;
+}
+@keyframes pulse-blue {
+  0%,100% { filter: drop-shadow(0 0 5px rgba(96,165,250,0.3)); }
+  50%      { filter: drop-shadow(0 0 14px rgba(96,165,250,0.6)); }
+}
+.ring-status-break { color: #60a5fa !important; }
+
+/* ── Blocked sites ── */
+.block-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+.block-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.block-status {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  transition: all 0.2s;
+}
+.block-status-on {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.site-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.site-list::-webkit-scrollbar { width: 4px; }
+.site-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.site-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.site-favicon { font-size: 13px; flex-shrink: 0; }
+.site-name {
+  flex: 1;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* ── Muted button ── */
+.btn-muted {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1.5px solid var(--border);
+}
+.btn-muted:hover { border-color: var(--text); color: var(--text); }
+
+/* ── Time Dropdowns (Reminders) ─────────────────────────────── */
+.time-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.time-select {
+  flex: 1;
+  padding: 9px 6px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+}
+.time-select:focus { border-color: var(--accent); outline: none; }
+.time-select:hover { border-color: var(--accent); }
+
+/* Style the dropdown options */
+.time-select option {
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+}
+
+.time-period { flex: 0.75; color: var(--accent); font-weight: 600; }
+
+.time-colon {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--muted);
+  flex-shrink: 0;
+  line-height: 1;
+}

@@ -23588,30 +23588,18 @@
   var PRESETS = [
     { label: "1m", value: 1 },
     { label: "5m", value: 5 },
-    { label: "10m", value: 10 }
-    // { label: "15m", value: 15 },
-    // { label: "25m", value: 25 },
-    // { label: "30m", value: 30 },
-    // { label: "45m", value: 45 },
-    // { label: "60m", value: 60 },
+    { label: "10m", value: 10 },
+    { label: "15m", value: 15 },
+    { label: "25m", value: 25 },
+    { label: "30m", value: 30 },
+    { label: "45m", value: 45 },
+    { label: "60m", value: 60 }
   ];
+  var HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
+  var MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
   var fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
   var uid = () => Math.random().toString(36).slice(2, 10);
   var todayStr = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  function parseTimeInput(raw) {
-    const now = /* @__PURE__ */ new Date();
-    const m = raw.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
-    if (!m) return null;
-    let h = parseInt(m[1]);
-    const min = m[2] ? parseInt(m[2]) : 0;
-    const p = m[3]?.toLowerCase();
-    if (p === "pm" && h < 12) h += 12;
-    if (p === "am" && h === 12) h = 0;
-    const d = new Date(now);
-    d.setHours(h, min, 0, 0);
-    if (d <= now) d.setDate(d.getDate() + 1);
-    return d;
-  }
   function msg(type, extra = {}) {
     return new Promise((res, rej) => {
       chrome.runtime.sendMessage({ type, ...extra }, (r) => {
@@ -23654,15 +23642,17 @@
     const [newTask, setNewTask] = (0, import_react.useState)("");
     const [reminders, setReminders] = (0, import_react.useState)([]);
     const [reminderName, setReminderName] = (0, import_react.useState)("");
-    const [reminderTime, setReminderTime] = (0, import_react.useState)("");
+    const [reminderHour, setReminderHour] = (0, import_react.useState)("9");
+    const [reminderMin, setReminderMin] = (0, import_react.useState)("00");
+    const [reminderPeriod, setReminderPeriod] = (0, import_react.useState)("AM");
     const [reminderError, setReminderError] = (0, import_react.useState)("");
     const [tab, setTab] = (0, import_react.useState)("sprint");
     const [theme, setTheme] = (0, import_react.useState)(() => localStorage.getItem("sb-theme") || "dark");
     const [clock, setClock] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
     const toastTimer = (0, import_react.useRef)(null);
-    function showToast(msg2) {
-      setToast(msg2);
+    function showToast(m) {
+      setToast(m);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(""), 2500);
     }
@@ -23770,11 +23760,13 @@
         setReminderError("Enter a task name.");
         return;
       }
-      const target = parseTimeInput(reminderTime);
-      if (!target) {
-        setReminderError("Use formats like '4pm' or '13:30'.");
-        return;
-      }
+      let h = parseInt(reminderHour);
+      const m = parseInt(reminderMin);
+      if (reminderPeriod === "PM" && h < 12) h += 12;
+      if (reminderPeriod === "AM" && h === 12) h = 0;
+      const target = /* @__PURE__ */ new Date();
+      target.setHours(h, m, 0, 0);
+      if (target <= /* @__PURE__ */ new Date()) target.setDate(target.getDate() + 1);
       const reminder = {
         id: uid(),
         taskName: reminderName.trim(),
@@ -23784,7 +23776,6 @@
       await msg("ADD_REMINDER", { reminder });
       setReminders((r) => [...r, reminder]);
       setReminderName("");
-      setReminderTime("");
       showToast(`Reminder set for ${target.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} \u2705`);
     };
     const deleteReminder = async (id) => {
@@ -23794,7 +23785,7 @@
     const pct = sprint.totalDuration > 0 ? 1 - timeLeft / sprint.totalDuration : 0;
     const doneTasks = tasks.filter((t) => t.done).length;
     const streakToday = sprint.lastSprintDate === todayStr() ? sprint.sprintsToday : 0;
-    return /* @__PURE__ */ import_react.default.createElement("div", { className: `app ${theme}` }, toast && /* @__PURE__ */ import_react.default.createElement("div", { className: "toast" }, toast), /* @__PURE__ */ import_react.default.createElement("header", { className: "hdr" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "hdr-left" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "logo" }, "\u26A1 SprintBuddy"), /* @__PURE__ */ import_react.default.createElement("span", { className: "clock" }, clock)), /* @__PURE__ */ import_react.default.createElement("button", { className: "icon-btn", onClick: () => setTheme((t) => t === "dark" ? "light" : "dark"), title: "Toggle theme" }, theme === "dark" ? "\u2600\uFE0F" : "\u{1F319}")), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-bar" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-label" }, "Today's sprints"), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-dots" }, [1, 2, 3, 4, 5, 6, 7, 8].map((n) => /* @__PURE__ */ import_react.default.createElement("span", { key: n, className: `dot ${n <= streakToday ? "dot-on" : ""}` }))), /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-count" }, streakToday, " done")), /* @__PURE__ */ import_react.default.createElement("nav", { className: "tabs" }, ["sprint", "tasks", "reminders"].map((t) => /* @__PURE__ */ import_react.default.createElement("button", { key: t, className: `tab ${tab === t ? "tab-active" : ""}`, onClick: () => setTab(t) }, t === "sprint" ? "\u23F1 Sprint" : t === "tasks" ? `\u2705 Tasks${tasks.length ? ` ${doneTasks}/${tasks.length}` : ""}` : "\u{1F514} Reminders"))), tab === "sprint" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement(Ring, { pct, timeLeft, running: sprint.running }), !sprint.running && /* @__PURE__ */ import_react.default.createElement("div", { className: "presets" }, PRESETS.map((p) => /* @__PURE__ */ import_react.default.createElement(
+    return /* @__PURE__ */ import_react.default.createElement("div", { className: `app ${theme}` }, toast && /* @__PURE__ */ import_react.default.createElement("div", { className: "toast" }, toast), /* @__PURE__ */ import_react.default.createElement("header", { className: "hdr" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "hdr-left" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "logo" }, "\u26A1 SprintBuddy"), /* @__PURE__ */ import_react.default.createElement("span", { className: "clock" }, clock)), /* @__PURE__ */ import_react.default.createElement("button", { className: "icon-btn", onClick: () => setTheme((t) => t === "dark" ? "light" : "dark"), title: "Toggle theme" }, theme === "dark" ? "\u2600\uFE0F" : "\u{1F319}")), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-bar" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-label" }, "Today's sprints"), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-dots" }, [1, 2, 3, 4, 5, 6, 7, 8].map((n) => /* @__PURE__ */ import_react.default.createElement("span", { key: n, className: `dot ${n <= streakToday ? "dot-on" : ""}` }))), /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-count" }, streakToday, " done")), /* @__PURE__ */ import_react.default.createElement("nav", { className: "tabs" }, ["sprint", "tasks", "reminders"].map((t) => /* @__PURE__ */ import_react.default.createElement("button", { key: t, className: `tab ${tab === t ? "tab-active" : ""}`, onClick: () => setTab(t) }, t === "sprint" ? "\u23F1 Sprint" : t === "tasks" ? `\u2705 Tasks${tasks.length ? ` ${doneTasks}/${tasks.length}` : ""}` : "\u{1F514} Reminders"))), tab === "sprint" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement(Ring, { pct, timeLeft, running: sprint.running }), !sprint.running && /* @__PURE__ */ import_react.default.createElement("div", { className: "presets-scroll" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "presets" }, PRESETS.map((p) => /* @__PURE__ */ import_react.default.createElement(
       "button",
       {
         key: p.value,
@@ -23802,7 +23793,7 @@
         onClick: () => setSelectedDuration(p.value)
       },
       p.label
-    ))), sprint.running && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, Math.round(sprint.totalDuration / 60), "m sprint \xB7 sprint #", streakToday, " today \u{1F525}"), /* @__PURE__ */ import_react.default.createElement("div", { className: "actions" }, !sprint.running ? /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-green", onClick: handleStart }, "\u25B6 Start ", selectedDuration, "m Sprint") : /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-red", onClick: handleStop }, "\u25A0 Stop Sprint"))), tab === "tasks" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Your focus list for today. Check off as you go."), /* @__PURE__ */ import_react.default.createElement("div", { className: "input-row" }, /* @__PURE__ */ import_react.default.createElement(
+    )))), sprint.running && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, Math.round(sprint.totalDuration / 60), "m sprint \xB7 sprint #", streakToday, " today \u{1F525}"), /* @__PURE__ */ import_react.default.createElement("div", { className: "actions" }, !sprint.running ? /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-green", onClick: handleStart }, "\u25B6 Start ", selectedDuration, "m Sprint") : /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-red", onClick: handleStop }, "\u25A0 Stop Sprint"))), tab === "tasks" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Your focus list for today. Check off as you go."), /* @__PURE__ */ import_react.default.createElement("div", { className: "input-row" }, /* @__PURE__ */ import_react.default.createElement(
       "input",
       {
         className: "field",
@@ -23811,24 +23802,41 @@
         onChange: (e) => setNewTask(e.target.value),
         onKeyDown: (e) => e.key === "Enter" && addTask()
       }
-    ), /* @__PURE__ */ import_react.default.createElement("button", { className: "add-btn", onClick: addTask }, "+")), /* @__PURE__ */ import_react.default.createElement("ul", { className: "task-list" }, tasks.length === 0 && /* @__PURE__ */ import_react.default.createElement("li", { className: "empty" }, "No tasks yet. Add one above \u2191"), tasks.map((t) => /* @__PURE__ */ import_react.default.createElement("li", { key: t.id, className: `task-item ${t.done ? "task-done" : ""}` }, /* @__PURE__ */ import_react.default.createElement("button", { className: "check-btn", onClick: () => toggleTask(t.id) }, t.done ? "\u2705" : "\u2B1C"), /* @__PURE__ */ import_react.default.createElement("span", { className: "task-text" }, t.text), /* @__PURE__ */ import_react.default.createElement("button", { className: "del-btn", onClick: () => deleteTask(t.id) }, "\u2715")))), tasks.length > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint", style: { textAlign: "center", marginTop: 8 } }, doneTasks, "/", tasks.length, " complete", doneTasks === tasks.length && tasks.length > 0 ? " \u{1F389} All done!" : "")), tab === "reminders" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Get a notification + sound at a specific time."), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Task name"), /* @__PURE__ */ import_react.default.createElement(
+    ), /* @__PURE__ */ import_react.default.createElement("button", { className: "add-btn", onClick: addTask }, "+")), /* @__PURE__ */ import_react.default.createElement("ul", { className: "task-list" }, tasks.length === 0 && /* @__PURE__ */ import_react.default.createElement("li", { className: "empty" }, "No tasks yet. Add one above \u2191"), tasks.map((t) => /* @__PURE__ */ import_react.default.createElement("li", { key: t.id, className: `task-item ${t.done ? "task-done" : ""}` }, /* @__PURE__ */ import_react.default.createElement("button", { className: "check-btn", onClick: () => toggleTask(t.id) }, t.done ? "\u2705" : "\u2B1C"), /* @__PURE__ */ import_react.default.createElement("span", { className: "task-text" }, t.text), /* @__PURE__ */ import_react.default.createElement("button", { className: "del-btn", onClick: () => deleteTask(t.id) }, "\u2715")))), tasks.length > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint", style: { textAlign: "center", marginTop: 8 } }, doneTasks, "/", tasks.length, " complete", doneTasks === tasks.length ? " \u{1F389} All done!" : "")), tab === "reminders" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Get a notification + sound at a specific time."), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Task name"), /* @__PURE__ */ import_react.default.createElement(
       "input",
       {
         className: "field",
         placeholder: "e.g. Review PR, Daily standup\u2026",
         value: reminderName,
-        onChange: (e) => setReminderName(e.target.value)
-      }
-    ), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Remind me at"), /* @__PURE__ */ import_react.default.createElement(
-      "input",
-      {
-        className: "field",
-        placeholder: "e.g. 4pm  or  13:30",
-        value: reminderTime,
-        onChange: (e) => setReminderTime(e.target.value),
+        onChange: (e) => setReminderName(e.target.value),
         onKeyDown: (e) => e.key === "Enter" && addReminder()
       }
-    ), reminderError && /* @__PURE__ */ import_react.default.createElement("p", { className: "error" }, reminderError), /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-green", onClick: addReminder, style: { marginTop: 4 } }, "Set Reminder"), reminders.length > 0 && /* @__PURE__ */ import_react.default.createElement("ul", { className: "reminder-list" }, reminders.map((r) => /* @__PURE__ */ import_react.default.createElement("li", { key: r.id, className: `reminder-item ${r.fired ? "reminder-fired" : ""}` }, /* @__PURE__ */ import_react.default.createElement("div", { className: "reminder-info" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "reminder-name" }, r.taskName), /* @__PURE__ */ import_react.default.createElement("span", { className: "reminder-time" }, new Date(r.targetTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), r.fired ? " \xB7 fired \u2705" : "")), /* @__PURE__ */ import_react.default.createElement("button", { className: "del-btn", onClick: () => deleteReminder(r.id) }, "\u2715"))))));
+    ), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Remind me at"), /* @__PURE__ */ import_react.default.createElement("div", { className: "time-dropdowns" }, /* @__PURE__ */ import_react.default.createElement(
+      "select",
+      {
+        className: "time-select",
+        value: reminderHour,
+        onChange: (e) => setReminderHour(e.target.value)
+      },
+      HOURS.map((h) => /* @__PURE__ */ import_react.default.createElement("option", { key: h, value: String(h) }, String(h).padStart(2, "0")))
+    ), /* @__PURE__ */ import_react.default.createElement("span", { className: "time-colon" }, ":"), /* @__PURE__ */ import_react.default.createElement(
+      "select",
+      {
+        className: "time-select",
+        value: reminderMin,
+        onChange: (e) => setReminderMin(e.target.value)
+      },
+      MINUTES.map((m) => /* @__PURE__ */ import_react.default.createElement("option", { key: m, value: m }, m))
+    ), /* @__PURE__ */ import_react.default.createElement(
+      "select",
+      {
+        className: "time-select time-period",
+        value: reminderPeriod,
+        onChange: (e) => setReminderPeriod(e.target.value)
+      },
+      /* @__PURE__ */ import_react.default.createElement("option", { value: "AM" }, "AM"),
+      /* @__PURE__ */ import_react.default.createElement("option", { value: "PM" }, "PM")
+    )), reminderError && /* @__PURE__ */ import_react.default.createElement("p", { className: "error" }, reminderError), /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-green", onClick: addReminder }, "Set Reminder"), reminders.length > 0 && /* @__PURE__ */ import_react.default.createElement("ul", { className: "reminder-list" }, reminders.map((r) => /* @__PURE__ */ import_react.default.createElement("li", { key: r.id, className: `reminder-item ${r.fired ? "reminder-fired" : ""}` }, /* @__PURE__ */ import_react.default.createElement("div", { className: "reminder-info" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "reminder-name" }, r.taskName), /* @__PURE__ */ import_react.default.createElement("span", { className: "reminder-time" }, new Date(r.targetTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), r.fired ? " \xB7 fired \u2705" : "")), /* @__PURE__ */ import_react.default.createElement("button", { className: "del-btn", onClick: () => deleteReminder(r.id) }, "\u2715"))))));
   };
   (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ import_react.default.createElement(Popup, null));
 })();

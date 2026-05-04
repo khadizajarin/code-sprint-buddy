@@ -36,15 +36,20 @@ type Tab = "sprint" | "tasks" | "reminders";
 // ── Presets ───────────────────────────────────────────────────
 
 const PRESETS = [
-  { label: "1m", value: 1 },
-  { label: "5m", value: 5 },
+  { label: "1m",  value: 1  },
+  { label: "5m",  value: 5  },
   { label: "10m", value: 10 },
-  // { label: "15m", value: 15 },
-  // { label: "25m", value: 25 },
-  // { label: "30m", value: 30 },
-  // { label: "45m", value: 45 },
-  // { label: "60m", value: 60 },
+  { label: "15m", value: 15 },
+  { label: "25m", value: 25 },
+  { label: "30m", value: 30 },
+  { label: "45m", value: 45 },
+  { label: "60m", value: 60 },
 ];
+
+// ── Dropdown options ──────────────────────────────────────────
+
+const HOURS   = Array.from({ length: 12 }, (_, i) => i + 1); // 1–12
+const MINUTES = ["00","05","10","15","20","25","30","35","40","45","50","55"];
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -52,23 +57,7 @@ const fmt = (s: number) =>
   `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-
 const todayStr = () => new Date().toISOString().slice(0, 10);
-
-function parseTimeInput(raw: string): Date | null {
-  const now = new Date();
-  const m = raw.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
-  if (!m) return null;
-  let h = parseInt(m[1]);
-  const min = m[2] ? parseInt(m[2]) : 0;
-  const p = m[3]?.toLowerCase();
-  if (p === "pm" && h < 12) h += 12;
-  if (p === "am" && h === 12) h = 0;
-  const d = new Date(now);
-  d.setHours(h, min, 0, 0);
-  if (d <= now) d.setDate(d.getDate() + 1);
-  return d;
-}
 
 function msg<T = any>(type: string, extra = {}): Promise<T> {
   return new Promise((res, rej) => {
@@ -79,6 +68,7 @@ function msg<T = any>(type: string, extra = {}): Promise<T> {
   });
 }
 
+// ── Ring component ────────────────────────────────────────────
 
 function Ring({ pct, timeLeft, running }: { pct: number; timeLeft: number; running: boolean }) {
   const R = 76;
@@ -106,6 +96,7 @@ function Ring({ pct, timeLeft, running }: { pct: number; timeLeft: number; runni
   );
 }
 
+// ── Main ──────────────────────────────────────────────────────
 
 const Popup: React.FC = () => {
   // Sprint
@@ -121,9 +112,11 @@ const Popup: React.FC = () => {
   const [newTask, setNewTask] = useState("");
 
   // Reminders
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [reminderName, setReminderName] = useState("");
-  const [reminderTime, setReminderTime] = useState("");
+  const [reminders, setReminders]         = useState<Reminder[]>([]);
+  const [reminderName, setReminderName]   = useState("");
+  const [reminderHour, setReminderHour]   = useState("9");
+  const [reminderMin, setReminderMin]     = useState("00");
+  const [reminderPeriod, setReminderPeriod] = useState<"AM" | "PM">("AM");
   const [reminderError, setReminderError] = useState("");
 
   // UI
@@ -131,22 +124,19 @@ const Popup: React.FC = () => {
   const [theme, setTheme] = useState(() => localStorage.getItem("sb-theme") || "dark");
   const [clock, setClock] = useState("");
   const [toast, setToast] = useState("");
-
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Toast ─────────────────────────────────────────────────────
+  // ── Toast ──────────────────────────────────────────────────
 
-  function showToast(msg: string) {
-    setToast(msg);
+  function showToast(m: string) {
+    setToast(m);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), 2500);
   }
 
-  // ── Theme ─────────────────────────────────────────────────────
+  // ── Effects ───────────────────────────────────────────────
 
   useEffect(() => { localStorage.setItem("sb-theme", theme); }, [theme]);
-
-  // ── Clock ─────────────────────────────────────────────────────
 
   useEffect(() => {
     const tick = () => setClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
@@ -154,8 +144,6 @@ const Popup: React.FC = () => {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
-
-  // ── Sprint polling (persisted state) ─────────────────────────
 
   useEffect(() => {
     const poll = async () => {
@@ -183,12 +171,11 @@ const Popup: React.FC = () => {
     return () => { clearInterval(id); chrome.runtime.onMessage.removeListener(handler); };
   }, []);
 
-  // ── Load tasks ────────────────────────────────────────────────
+  // ── Data loading ──────────────────────────────────────────
 
   const loadTasks = useCallback(async () => {
     try {
       const res = await msg<{ tasks: Task[] }>("GET_TASKS");
-      // Reset done tasks if it's a new day
       const today = todayStr();
       const fresh = res.tasks.map((t) =>
         t.done && new Date(t.createdAt).toISOString().slice(0, 10) !== today
@@ -207,7 +194,7 @@ const Popup: React.FC = () => {
 
   useEffect(() => { loadTasks(); loadReminders(); }, []);
 
-  // ── Sprint actions ────────────────────────────────────────────
+  // ── Sprint actions ────────────────────────────────────────
 
   const handleStart = async () => {
     try {
@@ -223,7 +210,7 @@ const Popup: React.FC = () => {
     } catch {}
   };
 
-  // ── Task actions ──────────────────────────────────────────────
+  // ── Task actions ──────────────────────────────────────────
 
   const addTask = async () => {
     const text = newTask.trim();
@@ -247,13 +234,21 @@ const Popup: React.FC = () => {
     await msg("SAVE_TASKS", { tasks: updated });
   };
 
-  // ── Reminder actions ──────────────────────────────────────────
+  // ── Reminder actions ──────────────────────────────────────
 
   const addReminder = async () => {
     setReminderError("");
     if (!reminderName.trim()) { setReminderError("Enter a task name."); return; }
-    const target = parseTimeInput(reminderTime);
-    if (!target) { setReminderError("Use formats like '4pm' or '13:30'."); return; }
+
+    // Build target Date from dropdowns
+    let h = parseInt(reminderHour);
+    const m = parseInt(reminderMin);
+    if (reminderPeriod === "PM" && h < 12) h += 12;
+    if (reminderPeriod === "AM" && h === 12) h = 0;
+
+    const target = new Date();
+    target.setHours(h, m, 0, 0);
+    if (target <= new Date()) target.setDate(target.getDate() + 1); // tomorrow if past
 
     const reminder: Reminder = {
       id: uid(),
@@ -264,7 +259,6 @@ const Popup: React.FC = () => {
     await msg("ADD_REMINDER", { reminder });
     setReminders((r) => [...r, reminder]);
     setReminderName("");
-    setReminderTime("");
     showToast(`Reminder set for ${target.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ✅`);
   };
 
@@ -273,13 +267,13 @@ const Popup: React.FC = () => {
     setReminders((r) => r.filter((x) => x.id !== id));
   };
 
-  // ── Derived ───────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────
 
   const pct = sprint.totalDuration > 0 ? 1 - timeLeft / sprint.totalDuration : 0;
   const doneTasks = tasks.filter((t) => t.done).length;
   const streakToday = sprint.lastSprintDate === todayStr() ? sprint.sprintsToday : 0;
 
-  // ── Render ────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────
 
   return (
     <div className={`app ${theme}`}>
@@ -313,7 +307,9 @@ const Popup: React.FC = () => {
       <nav className="tabs">
         {(["sprint","tasks","reminders"] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? "tab-active" : ""}`} onClick={() => setTab(t)}>
-            {t === "sprint" ? "⏱ Sprint" : t === "tasks" ? `✅ Tasks${tasks.length ? ` ${doneTasks}/${tasks.length}` : ""}` : "🔔 Reminders"}
+            {t === "sprint" ? "⏱ Sprint"
+              : t === "tasks" ? `✅ Tasks${tasks.length ? ` ${doneTasks}/${tasks.length}` : ""}`
+              : "🔔 Reminders"}
           </button>
         ))}
       </nav>
@@ -324,14 +320,16 @@ const Popup: React.FC = () => {
           <Ring pct={pct} timeLeft={timeLeft} running={sprint.running} />
 
           {!sprint.running && (
-            <div className="presets">
-              {PRESETS.map((p) => (
-                <button
-                  key={p.value}
-                  className={`chip ${selectedDuration === p.value ? "chip-active" : ""}`}
-                  onClick={() => setSelectedDuration(p.value)}
-                >{p.label}</button>
-              ))}
+            <div className="presets-scroll">
+              <div className="presets">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.value}
+                    className={`chip ${selectedDuration === p.value ? "chip-active" : ""}`}
+                    onClick={() => setSelectedDuration(p.value)}
+                  >{p.label}</button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -384,7 +382,7 @@ const Popup: React.FC = () => {
           {tasks.length > 0 && (
             <p className="hint" style={{ textAlign: "center", marginTop: 8 }}>
               {doneTasks}/{tasks.length} complete
-              {doneTasks === tasks.length && tasks.length > 0 ? " 🎉 All done!" : ""}
+              {doneTasks === tasks.length ? " 🎉 All done!" : ""}
             </p>
           )}
         </section>
@@ -401,24 +399,49 @@ const Popup: React.FC = () => {
             placeholder="e.g. Review PR, Daily standup…"
             value={reminderName}
             onChange={(e) => setReminderName(e.target.value)}
-          />
-
-          <label className="label">Remind me at</label>
-          <input
-            className="field"
-            placeholder="e.g. 4pm  or  13:30"
-            value={reminderTime}
-            onChange={(e) => setReminderTime(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addReminder()}
           />
 
+          <label className="label">Remind me at</label>
+          <div className="time-dropdowns">
+            <select
+              className="time-select"
+              value={reminderHour}
+              onChange={(e) => setReminderHour(e.target.value)}
+            >
+              {HOURS.map((h) => (
+                <option key={h} value={String(h)}>{String(h).padStart(2, "0")}</option>
+              ))}
+            </select>
+
+            <span className="time-colon">:</span>
+
+            <select
+              className="time-select"
+              value={reminderMin}
+              onChange={(e) => setReminderMin(e.target.value)}
+            >
+              {MINUTES.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+
+            <select
+              className="time-select time-period"
+              value={reminderPeriod}
+              onChange={(e) => setReminderPeriod(e.target.value as "AM" | "PM")}
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+
           {reminderError && <p className="error">{reminderError}</p>}
 
-          <button className="btn btn-green" onClick={addReminder} style={{ marginTop: 4 }}>
+          <button className="btn btn-green" onClick={addReminder}>
             Set Reminder
           </button>
 
-          {/* Existing reminders */}
           {reminders.length > 0 && (
             <ul className="reminder-list">
               {reminders.map((r) => (
