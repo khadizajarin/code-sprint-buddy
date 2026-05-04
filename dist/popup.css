@@ -1,26 +1,21 @@
-/* ============================================================
-   popup.css — SprintBuddy
-   Aesthetic: dark terminal meets focused productivity tool
-   Fonts: DM Mono (monospace data) + Outfit (UI labels)
-   ============================================================ */
+
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap');
 
-/* ── Reset ──────────────────────────────────────────────────── */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 button { cursor: pointer; background: none; border: none; font-family: inherit; }
 input  { border: none; outline: none; font-family: inherit; background: none; }
 ul     { list-style: none; }
 
-/* ── Tokens ─────────────────────────────────────────────────── */
 .dark {
   --bg:        #0d0f14;
   --surface:   #141720;
   --surface2:  #1c2030;
   --border:    #252940;
-  --text:      #dde1f0;
+  --text:      #edeff7;
   --muted:     #5a6080;
-  --accent:    #39d98a;   /* green */
+  --accent:    #39d98a;  
   --accent-dim:#1a6640;
   --danger:    #f06060;
   --warn:      #f0a840;
@@ -34,7 +29,7 @@ ul     { list-style: none; }
   --surface:   #ffffff;
   --surface2:  #e8eaf2;
   --border:    #d4d8e8;
-  --text:      #141720;
+  --text:      #060709;
   --muted:     #8890a8;
   --accent:    #16a34a;
   --accent-dim:#d1fae5;
@@ -45,7 +40,7 @@ ul     { list-style: none; }
   --glow:      rgba(22,163,74,0.25);
 }
 
-/* ── Shell ──────────────────────────────────────────────────── */
+
 .app {
   width: 340px;
   min-height: 460px;
@@ -59,7 +54,6 @@ ul     { list-style: none; }
   overflow: hidden;
 }
 
-/* ── Toast ──────────────────────────────────────────────────── */
 .toast {
   position: absolute;
   top: 10px; left: 50%;
@@ -80,7 +74,7 @@ ul     { list-style: none; }
   to   { opacity:1; transform: translateX(-50%) translateY(0); }
 }
 
-/* ── Header ─────────────────────────────────────────────────── */
+
 .hdr {
   display: flex;
   justify-content: space-between;
@@ -110,7 +104,7 @@ ul     { list-style: none; }
 }
 .icon-btn:hover { opacity: 1; }
 
-/* ── Streak bar ─────────────────────────────────────────────── */
+
 .streak-bar {
   display: flex;
   align-items: center;
@@ -152,7 +146,7 @@ ul     { list-style: none; }
   flex-shrink: 0;
 }
 
-/* ── Tabs ───────────────────────────────────────────────────── */
+
 .tabs {
   display: flex;
   border-bottom: 1px solid var(--border);
@@ -173,7 +167,7 @@ ul     { list-style: none; }
 .tab-active { color: var(--accent); border-bottom-color: var(--accent); }
 .tab:hover:not(.tab-active) { color: var(--text); }
 
-/* ── Sections ───────────────────────────────────────────────── */
+
 .section {
   display: flex;
   flex-direction: column;
@@ -190,7 +184,7 @@ ul     { list-style: none; }
   line-height: 1.5;
 }
 
-/* ── Ring ───────────────────────────────────────────────────── */
+
 .ring-wrap {
   position: relative;
   width: 190px;
@@ -236,7 +230,7 @@ ul     { list-style: none; }
   color: var(--muted);
 }
 
-/* ── Presets ────────────────────────────────────────────────── */
+
 /* .presets moved to scroll wrapper below */
 
 .chip {
@@ -252,7 +246,7 @@ ul     { list-style: none; }
 .chip:hover { border-color: var(--accent); color: var(--accent); }
 .chip-active { background: var(--accent); border-color: var(--accent); color: #000 !important; }
 
-/* ── Buttons ────────────────────────────────────────────────── */
+
 .actions { width: 100%; }
 
 .btn {
@@ -272,7 +266,7 @@ ul     { list-style: none; }
 .btn-red   { background: var(--surface); color: var(--danger); border: 1.5px solid var(--danger); }
 .btn-red:hover { background: var(--danger); color: #fff; }
 
-/* ── Tasks ──────────────────────────────────────────────────── */
+
 .input-row {
   display: flex;
   gap: 6px;
@@ -347,7 +341,7 @@ ul     { list-style: none; }
 
 .empty { color: var(--muted); font-size: 12px; padding: 12px 0; }
 
-/* ── Reminders ──────────────────────────────────────────────── */
+
 .label {
   align-self: flex-start;
   font-size: 11px;
@@ -393,7 +387,7 @@ ul     { list-style: none; }
 }
 .reminder-fired .reminder-time { color: var(--muted); }
 
-/* ── Horizontal scrollable presets ── */
+
 .presets-scroll {
   width: 100%;
   overflow-x: auto;
@@ -407,7 +401,7 @@ ul     { list-style: none; }
 .presets {
   display: flex;
   gap: 6px;
-  width: max-content; /* don't wrap — let it overflow for scroll */
+  width: max-content; 
   padding: 2px 2px;
 }
 
@@ -572,7 +566,7 @@ ul     { list-style: none; }
 }
 .btn-muted:hover { border-color: var(--text); color: var(--text); }
 
-/* ── Time Dropdowns (Reminders) ─────────────────────────────── */
+
 .time-dropdowns {
   display: flex;
   align-items: center;
@@ -615,4 +609,136 @@ ul     { list-style: none; }
   color: var(--muted);
   flex-shrink: 0;
   line-height: 1;
+}
+
+
+.ring-sprint { stroke: var(--accent); }
+.ring-break  { stroke: var(--warn); }
+.ring-idle   { stroke: var(--border); }
+
+.ring-sprint { filter: drop-shadow(0 0 7px var(--glow)); animation: pulse 3s ease-in-out infinite; }
+.ring-break  { filter: drop-shadow(0 0 7px rgba(240,168,64,0.4)); }
+
+.phase-sprint { color: var(--accent); }
+.phase-break  { color: var(--warn); }
+.phase-idle   { color: var(--muted); }
+
+.break-card {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--warn);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+.break-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--warn);
+}
+
+
+.config-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.config-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 38px;
+}
+
+
+.pomodoro-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.pomodoro-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+
+.toggle {
+  width: 42px; height: 24px;
+  border-radius: 12px;
+  background: var(--border);
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-on { background: var(--accent); }
+.toggle-knob {
+  position: absolute;
+  top: 3px; 
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  display: block;
+}
+.toggle-on .toggle-knob { transform: translateX(15px); }
+
+
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--warn);
+  color: var(--warn);
+  font-size: 13px;
+  padding: 8px 18px;
+  width: auto;
+}
+.btn-outline:hover { background: var(--warn); color: #000; }
+
+/* Break chip variant */
+.chip-break { background: var(--warn) !important; border-color: var(--warn) !important; }
+
+
+.time-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.time-select {
+  flex: 1;
+  padding: 9px 6px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+}
+.time-select:focus, .time-select:hover { border-color: var(--accent); outline: none; }
+.time-select option { background: var(--surface); color: var(--text); }
+.time-period { flex: 0.75; color: var(--accent); font-weight: 600; }
+.time-colon {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px; font-weight: 700;
+  color: var(--muted); flex-shrink: 0;
 }

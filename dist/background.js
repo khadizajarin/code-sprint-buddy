@@ -1,12 +1,14 @@
 "use strict";
 (() => {
   // background.ts
-  var DEFAULT_STATE = {
-    running: false,
+  var DEFAULT = {
+    phase: "idle",
     startedAt: null,
-    totalDuration: 25 * 60,
+    sprintDuration: 25 * 60,
+    breakDuration: 5 * 60,
     sprintsToday: 0,
-    lastSprintDate: ""
+    lastSprintDate: "",
+    pomodoroEnabled: false
   };
   var BREAK_TIPS = [
     "\u{1F440} Look 20 feet away for 20 seconds \u2014 rest your eyes.",
@@ -21,23 +23,23 @@
   var todayStr = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
   var randomTip = () => BREAK_TIPS[Math.floor(Math.random() * BREAK_TIPS.length)];
   function computeTimeLeft(state) {
-    if (!state.running || !state.startedAt) return state.totalDuration;
+    if (state.phase === "idle" || !state.startedAt) return state.sprintDuration;
+    const dur = state.phase === "sprint" ? state.sprintDuration : state.breakDuration;
     const elapsed = Math.floor((Date.now() - state.startedAt) / 1e3);
-    return Math.max(0, state.totalDuration - elapsed);
+    return Math.max(0, dur - elapsed);
   }
-  var get = (key, fallback) => new Promise(
-    (res) => chrome.storage.local.get(key, (d) => res(d[key] ?? fallback))
-  );
+  var get = (key, fb) => new Promise((res) => chrome.storage.local.get(key, (d) => res(d[key] ?? fb)));
   var set = (key, val) => new Promise((res) => chrome.storage.local.set({ [key]: val }, res));
-  var getState = () => get("sprintState", { ...DEFAULT_STATE });
-  var saveState = (s) => set("sprintState", s);
+  var getState = () => get("appState", { ...DEFAULT });
+  var saveState = (s) => set("appState", s);
   function playSound() {
-    chrome.tabs.query({}, (tabs) => {
-      tabs.forEach((tab) => {
-        if (tab.id) chrome.tabs.sendMessage(tab.id, { type: "PLAY_SOUND" }).catch(() => {
+    chrome.tabs.query(
+      {},
+      (tabs) => tabs.forEach((t) => {
+        if (t.id) chrome.tabs.sendMessage(t.id, { type: "PLAY_SOUND" }).catch(() => {
         });
-      });
-    });
+      })
+    );
   }
   function notify(title, message) {
     chrome.notifications.create(`sb-${Date.now()}`, {
@@ -48,99 +50,156 @@
       priority: 2
     });
   }
-  async function endSprint() {
-    const state = await getState();
-    const today = todayStr();
-    const sprintsToday = state.lastSprintDate === today ? state.sprintsToday + 1 : 1;
-    const updated = {
-      ...state,
-      running: false,
-      startedAt: null,
-      sprintsToday,
-      lastSprintDate: today
-    };
-    await saveState(updated);
-    const mins = Math.round(state.totalDuration / 60);
-    notify(
-      `\u{1F389} Sprint #${sprintsToday} Complete!`,
-      `${mins} min done! ${randomTip()}`
-    );
-    playSound();
-    chrome.runtime.sendMessage({ type: "SPRINT_ENDED", state: updated }).catch(() => {
+  function broadcast(msg) {
+    chrome.runtime.sendMessage(msg).catch(() => {
     });
   }
+  async function sprintEnded() {
+    const s = await getState();
+    const today = todayStr();
+    const sprintsToday = s.lastSprintDate === today ? s.sprintsToday + 1 : 1;
+    if (s.pomodoroEnabled) {
+      const next = {
+        ...s,
+        phase: "break",
+        startedAt: Date.now(),
+        sprintsToday,
+        lastSprintDate: today
+      };
+      await saveState(next);
+      chrome.alarms.create("phaseEnd", { delayInMinutes: next.breakDuration / 60 });
+      const mins = Math.round(s.sprintDuration / 60);
+      notify(`\u{1F389} Sprint #${sprintsToday} done!`, `${mins}m complete! Break starts now. ${randomTip()}`);
+      playSound();
+      broadcast({ type: "PHASE_CHANGE", state: next, timeLeft: next.breakDuration });
+    } else {
+      const next = { ...s, phase: "idle", startedAt: null, sprintsToday, lastSprintDate: today };
+      await saveState(next);
+      const mins = Math.round(s.sprintDuration / 60);
+      notify(`\u{1F389} Sprint #${sprintsToday} done!`, `${mins}m complete! ${randomTip()}`);
+      playSound();
+      broadcast({ type: "PHASE_CHANGE", state: next, timeLeft: next.sprintDuration });
+    }
+  }
+  async function breakEnded() {
+    const s = await getState();
+    if (s.pomodoroEnabled) {
+      const next = { ...s, phase: "sprint", startedAt: Date.now() };
+      await saveState(next);
+      chrome.alarms.create("phaseEnd", { delayInMinutes: next.sprintDuration / 60 });
+      notify("\u{1F680} Break over!", `Sprint #${s.sprintsToday + 1} starts now. Stay focused!`);
+      broadcast({ type: "PHASE_CHANGE", state: next, timeLeft: next.sprintDuration });
+    } else {
+      const next = { ...s, phase: "idle", startedAt: null };
+      await saveState(next);
+      notify("\u2600\uFE0F Break over!", "Ready for your next sprint?");
+      broadcast({ type: "PHASE_CHANGE", state: next, timeLeft: next.sprintDuration });
+    }
+  }
   chrome.alarms.onAlarm.addListener(async (alarm) => {
-    if (alarm.name === "sprintEnd") {
-      const state = await getState();
-      if (state.running) await endSprint();
+    if (alarm.name === "phaseEnd") {
+      const s = await getState();
+      if (s.phase === "sprint") await sprintEnded();
+      else if (s.phase === "break") await breakEnded();
     }
     if (alarm.name.startsWith("reminder-")) {
       const id = alarm.name.replace("reminder-", "");
       const reminders = await get("reminders", []);
-      const reminder = reminders.find((r) => r.id === id);
-      if (reminder && !reminder.fired) {
-        notify("\u23F0 Task Reminder", reminder.taskName);
+      const r = reminders.find((r2) => r2.id === id);
+      if (r && !r.fired) {
+        notify("\u23F0 Task Reminder", r.taskName);
         playSound();
-        const updated = reminders.map((r) => r.id === id ? { ...r, fired: true } : r);
-        await set("reminders", updated);
-        chrome.runtime.sendMessage({ type: "REMINDER_FIRED", id }).catch(() => {
-        });
+        await set("reminders", reminders.map((x) => x.id === id ? { ...x, fired: true } : x));
+        broadcast({ type: "REMINDER_FIRED", id });
       }
     }
   });
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
-      const state = await getState();
+      const s = await getState();
       switch (message.type) {
+        // ── Start sprint ──
         case "START": {
-          if (state.running) {
-            sendResponse({ success: false, reason: "already_running", state, timeLeft: computeTimeLeft(state) });
+          if (s.phase !== "idle") {
+            sendResponse({ success: false, reason: "not_idle" });
             return;
           }
           const durationMins = message.duration ?? 25;
-          const totalDuration = durationMins * 60;
-          const updated = { ...state, running: true, startedAt: Date.now(), totalDuration };
-          await saveState(updated);
-          chrome.alarms.create("sprintEnd", { delayInMinutes: durationMins });
-          notify("\u{1F680} Sprint Started!", `${durationMins}-min focus sprint. You've got this!`);
-          sendResponse({ success: true, state: updated, timeLeft: totalDuration });
+          const breakMins = message.breakDuration ?? 5;
+          const pomodoroEnabled = message.pomodoroEnabled ?? s.pomodoroEnabled;
+          const next = {
+            ...s,
+            phase: "sprint",
+            startedAt: Date.now(),
+            sprintDuration: durationMins * 60,
+            breakDuration: breakMins * 60,
+            pomodoroEnabled
+          };
+          await saveState(next);
+          chrome.alarms.create("phaseEnd", { delayInMinutes: durationMins });
+          notify("\u{1F680} Sprint started!", `${durationMins}m focus sprint. You've got this!`);
+          sendResponse({ success: true, state: next, timeLeft: next.sprintDuration });
           break;
         }
+        // ── Skip break (go straight to next sprint) ──
+        case "SKIP_BREAK": {
+          if (s.phase !== "break") {
+            sendResponse({ success: false, reason: "not_in_break" });
+            return;
+          }
+          chrome.alarms.clear("phaseEnd");
+          const next = { ...s, phase: "sprint", startedAt: Date.now() };
+          await saveState(next);
+          chrome.alarms.create("phaseEnd", { delayInMinutes: next.sprintDuration / 60 });
+          notify("\u{1F680} Break skipped!", "Next sprint started. Focus up!");
+          sendResponse({ success: true, state: next, timeLeft: next.sprintDuration });
+          break;
+        }
+        // ── Stop everything → idle ──
         case "STOP": {
-          chrome.alarms.clear("sprintEnd");
-          const updated = { ...state, running: false, startedAt: null };
-          await saveState(updated);
-          sendResponse({ success: true, state: updated, timeLeft: updated.totalDuration });
+          chrome.alarms.clear("phaseEnd");
+          const next = { ...s, phase: "idle", startedAt: null };
+          await saveState(next);
+          sendResponse({ success: true, state: next, timeLeft: next.sprintDuration });
           break;
         }
+        // ── Status (popup polls this every second) ──
         case "STATUS": {
-          const timeLeft = computeTimeLeft(state);
-          if (state.running && timeLeft === 0) {
-            await endSprint();
+          const timeLeft = computeTimeLeft(s);
+          if (timeLeft === 0 && s.phase !== "idle") {
+            if (s.phase === "sprint") await sprintEnded();
+            else await breakEnded();
             const fresh = await getState();
-            sendResponse({ ...fresh, timeLeft: 0 });
+            sendResponse({ ...fresh, timeLeft: computeTimeLeft(fresh) });
           } else {
-            sendResponse({ ...state, timeLeft });
+            sendResponse({ ...s, timeLeft });
           }
           break;
         }
+        // ── Pomodoro toggle ──
+        case "SET_POMODORO": {
+          const next = { ...s, pomodoroEnabled: message.enabled };
+          await saveState(next);
+          sendResponse({ success: true, state: next });
+          break;
+        }
+        // ── Tasks ──
         case "SAVE_TASKS": {
           await set("tasks", message.tasks);
           sendResponse({ success: true });
           break;
         }
         case "GET_TASKS": {
-          const tasks = await get("tasks", []);
-          sendResponse({ tasks });
+          sendResponse({ tasks: await get("tasks", []) });
           break;
         }
+        // ── Reminders ──
         case "ADD_REMINDER": {
           const reminders = await get("reminders", []);
-          const newReminder = message.reminder;
-          reminders.push(newReminder);
+          reminders.push(message.reminder);
           await set("reminders", reminders);
-          const delayMins = Math.max(0.1, (newReminder.targetTime - Date.now()) / 6e4);
-          chrome.alarms.create(`reminder-${newReminder.id}`, { delayInMinutes: delayMins });
+          const delayMins = Math.max(0.1, (message.reminder.targetTime - Date.now()) / 6e4);
+          chrome.alarms.create(`reminder-${message.reminder.id}`, { delayInMinutes: delayMins });
           sendResponse({ success: true });
           break;
         }
@@ -154,8 +213,7 @@
         }
         case "DELETE_REMINDER": {
           const reminders = await get("reminders", []);
-          const updated = reminders.filter((r) => r.id !== message.id);
-          await set("reminders", updated);
+          await set("reminders", reminders.filter((r) => r.id !== message.id));
           chrome.alarms.clear(`reminder-${message.id}`);
           sendResponse({ success: true });
           break;

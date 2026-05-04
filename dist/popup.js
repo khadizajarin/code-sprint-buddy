@@ -23585,7 +23585,7 @@
   // popup.tsx
   var import_react = __toESM(require_react());
   var import_client = __toESM(require_client());
-  var PRESETS = [
+  var SPRINT_PRESETS = [
     { label: "1m", value: 1 },
     { label: "5m", value: 5 },
     { label: "10m", value: 10 },
@@ -23595,23 +23595,30 @@
     { label: "45m", value: 45 },
     { label: "60m", value: 60 }
   ];
+  var BREAK_PRESETS = [
+    { label: "2m", value: 2 },
+    { label: "5m", value: 5 },
+    { label: "10m", value: 10 },
+    { label: "15m", value: 15 },
+    { label: "30m", value: 30 }
+  ];
   var HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
   var MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
   var fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
   var uid = () => Math.random().toString(36).slice(2, 10);
   var todayStr = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  function msg(type, extra = {}) {
-    return new Promise((res, rej) => {
-      chrome.runtime.sendMessage({ type, ...extra }, (r) => {
-        if (chrome.runtime.lastError) rej(chrome.runtime.lastError);
-        else res(r);
-      });
-    });
+  function send(type, extra = {}) {
+    return new Promise(
+      (res, rej) => chrome.runtime.sendMessage(
+        { type, ...extra },
+        (r) => chrome.runtime.lastError ? rej(chrome.runtime.lastError) : res(r)
+      )
+    );
   }
-  function Ring({ pct, timeLeft, running }) {
-    const R = 76;
-    const circ = 2 * Math.PI * R;
+  function Ring({ pct, timeLeft, phase }) {
+    const R = 76, circ = 2 * Math.PI * R;
     const offset = circ * (1 - Math.min(1, pct));
+    const label = phase === "sprint" ? "focusing" : phase === "break" ? "on break" : "ready";
     return /* @__PURE__ */ import_react.default.createElement("div", { className: "ring-wrap" }, /* @__PURE__ */ import_react.default.createElement("svg", { width: "190", height: "190", viewBox: "0 0 190 190" }, /* @__PURE__ */ import_react.default.createElement("circle", { cx: "95", cy: "95", r: R, fill: "none", strokeWidth: "8", className: "ring-bg" }), /* @__PURE__ */ import_react.default.createElement(
       "circle",
       {
@@ -23620,24 +23627,27 @@
         r: R,
         fill: "none",
         strokeWidth: "8",
-        className: `ring-fg ${running ? "ring-glow" : ""}`,
+        className: `ring-fg ring-${phase}`,
         strokeDasharray: circ,
         strokeDashoffset: offset,
         strokeLinecap: "round",
         transform: "rotate(-90 95 95)"
       }
-    )), /* @__PURE__ */ import_react.default.createElement("div", { className: "ring-inner" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "ring-time" }, fmt(timeLeft)), /* @__PURE__ */ import_react.default.createElement("span", { className: "ring-status" }, running ? "focusing" : "ready")));
+    )), /* @__PURE__ */ import_react.default.createElement("div", { className: "ring-inner" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "ring-time" }, fmt(timeLeft)), /* @__PURE__ */ import_react.default.createElement("span", { className: `ring-status phase-${phase}` }, label)));
   }
   var Popup = () => {
-    const [sprint, setSprint] = (0, import_react.useState)({
-      running: false,
+    const [state, setState] = (0, import_react.useState)({
+      phase: "idle",
       startedAt: null,
-      totalDuration: 25 * 60,
+      sprintDuration: 25 * 60,
+      breakDuration: 5 * 60,
       sprintsToday: 0,
-      lastSprintDate: ""
+      lastSprintDate: "",
+      pomodoroEnabled: false
     });
     const [timeLeft, setTimeLeft] = (0, import_react.useState)(25 * 60);
-    const [selectedDuration, setSelectedDuration] = (0, import_react.useState)(25);
+    const [selectedSprint, setSelectedSprint] = (0, import_react.useState)(25);
+    const [selectedBreak, setSelectedBreak] = (0, import_react.useState)(5);
     const [tasks, setTasks] = (0, import_react.useState)([]);
     const [newTask, setNewTask] = (0, import_react.useState)("");
     const [reminders, setReminders] = (0, import_react.useState)([]);
@@ -23650,12 +23660,12 @@
     const [theme, setTheme] = (0, import_react.useState)(() => localStorage.getItem("sb-theme") || "dark");
     const [clock, setClock] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
-    const toastTimer = (0, import_react.useRef)(null);
-    function showToast(m) {
+    const toastRef = (0, import_react.useRef)(null);
+    const showToast = (m) => {
       setToast(m);
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToast(""), 2500);
-    }
+      if (toastRef.current) clearTimeout(toastRef.current);
+      toastRef.current = setTimeout(() => setToast(""), 2800);
+    };
     (0, import_react.useEffect)(() => {
       localStorage.setItem("sb-theme", theme);
     }, [theme]);
@@ -23668,8 +23678,8 @@
     (0, import_react.useEffect)(() => {
       const poll = async () => {
         try {
-          const res = await msg("STATUS");
-          setSprint(res);
+          const res = await send("STATUS");
+          setState(res);
           setTimeLeft(res.timeLeft);
         } catch {
         }
@@ -23677,10 +23687,12 @@
       poll();
       const id = setInterval(poll, 1e3);
       const handler = (m) => {
-        if (m.type === "SPRINT_ENDED") {
-          setSprint(m.state);
-          setTimeLeft(m.state.totalDuration);
-          showToast("Sprint complete! Time for a break \u{1F9D8}");
+        if (m.type === "PHASE_CHANGE") {
+          setState(m.state);
+          setTimeLeft(m.timeLeft);
+          if (m.state.phase === "break") showToast("Sprint done! Break time \u{1F9D8}");
+          if (m.state.phase === "sprint") showToast("Break over! Sprint starting \u{1F680}");
+          if (m.state.phase === "idle") showToast("Sprint complete! Great work \u{1F389}");
         }
         if (m.type === "REMINDER_FIRED") {
           loadReminders();
@@ -23695,18 +23707,17 @@
     }, []);
     const loadTasks = (0, import_react.useCallback)(async () => {
       try {
-        const res = await msg("GET_TASKS");
+        const res = await send("GET_TASKS");
         const today = todayStr();
-        const fresh = res.tasks.map(
+        setTasks(res.tasks.map(
           (t) => t.done && new Date(t.createdAt).toISOString().slice(0, 10) !== today ? { ...t, done: false } : t
-        );
-        setTasks(fresh);
+        ));
       } catch {
       }
     }, []);
     const loadReminders = (0, import_react.useCallback)(async () => {
       try {
-        const res = await msg("GET_REMINDERS");
+        const res = await send("GET_REMINDERS");
         setReminders(res.reminders);
       } catch {
       }
@@ -23717,9 +23728,13 @@
     }, []);
     const handleStart = async () => {
       try {
-        const res = await msg("START", { duration: selectedDuration });
+        const res = await send("START", {
+          duration: selectedSprint,
+          breakDuration: selectedBreak,
+          pomodoroEnabled: state.pomodoroEnabled
+        });
         if (res.state) {
-          setSprint(res.state);
+          setState(res.state);
           setTimeLeft(res.timeLeft);
         }
       } catch {
@@ -23727,11 +23742,29 @@
     };
     const handleStop = async () => {
       try {
-        const res = await msg("STOP");
+        const res = await send("STOP");
         if (res.state) {
-          setSprint(res.state);
-          setTimeLeft(res.state.totalDuration);
+          setState(res.state);
+          setTimeLeft(res.state.sprintDuration);
         }
+      } catch {
+      }
+    };
+    const handleSkipBreak = async () => {
+      try {
+        const res = await send("SKIP_BREAK");
+        if (res.state) {
+          setState(res.state);
+          setTimeLeft(res.timeLeft);
+        }
+      } catch {
+      }
+    };
+    const togglePomodoro = async () => {
+      const enabled = !state.pomodoroEnabled;
+      try {
+        const res = await send("SET_POMODORO", { enabled });
+        if (res.state) setState(res.state);
       } catch {
       }
     };
@@ -23742,17 +23775,17 @@
       const updated = [task, ...tasks];
       setTasks(updated);
       setNewTask("");
-      await msg("SAVE_TASKS", { tasks: updated });
+      await send("SAVE_TASKS", { tasks: updated });
     };
     const toggleTask = async (id) => {
       const updated = tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t);
       setTasks(updated);
-      await msg("SAVE_TASKS", { tasks: updated });
+      await send("SAVE_TASKS", { tasks: updated });
     };
     const deleteTask = async (id) => {
       const updated = tasks.filter((t) => t.id !== id);
       setTasks(updated);
-      await msg("SAVE_TASKS", { tasks: updated });
+      await send("SAVE_TASKS", { tasks: updated });
     };
     const addReminder = async () => {
       setReminderError("");
@@ -23767,33 +23800,44 @@
       const target = /* @__PURE__ */ new Date();
       target.setHours(h, m, 0, 0);
       if (target <= /* @__PURE__ */ new Date()) target.setDate(target.getDate() + 1);
-      const reminder = {
-        id: uid(),
-        taskName: reminderName.trim(),
-        targetTime: target.getTime(),
-        fired: false
-      };
-      await msg("ADD_REMINDER", { reminder });
+      const reminder = { id: uid(), taskName: reminderName.trim(), targetTime: target.getTime(), fired: false };
+      await send("ADD_REMINDER", { reminder });
       setReminders((r) => [...r, reminder]);
       setReminderName("");
       showToast(`Reminder set for ${target.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} \u2705`);
     };
     const deleteReminder = async (id) => {
-      await msg("DELETE_REMINDER", { id });
+      await send("DELETE_REMINDER", { id });
       setReminders((r) => r.filter((x) => x.id !== id));
     };
-    const pct = sprint.totalDuration > 0 ? 1 - timeLeft / sprint.totalDuration : 0;
+    const currentDuration = state.phase === "break" ? state.breakDuration : state.sprintDuration;
+    const pct = currentDuration > 0 ? 1 - timeLeft / currentDuration : 0;
     const doneTasks = tasks.filter((t) => t.done).length;
-    const streakToday = sprint.lastSprintDate === todayStr() ? sprint.sprintsToday : 0;
-    return /* @__PURE__ */ import_react.default.createElement("div", { className: `app ${theme}` }, toast && /* @__PURE__ */ import_react.default.createElement("div", { className: "toast" }, toast), /* @__PURE__ */ import_react.default.createElement("header", { className: "hdr" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "hdr-left" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "logo" }, "\u26A1 SprintBuddy"), /* @__PURE__ */ import_react.default.createElement("span", { className: "clock" }, clock)), /* @__PURE__ */ import_react.default.createElement("button", { className: "icon-btn", onClick: () => setTheme((t) => t === "dark" ? "light" : "dark"), title: "Toggle theme" }, theme === "dark" ? "\u2600\uFE0F" : "\u{1F319}")), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-bar" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-label" }, "Today's sprints"), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-dots" }, [1, 2, 3, 4, 5, 6, 7, 8].map((n) => /* @__PURE__ */ import_react.default.createElement("span", { key: n, className: `dot ${n <= streakToday ? "dot-on" : ""}` }))), /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-count" }, streakToday, " done")), /* @__PURE__ */ import_react.default.createElement("nav", { className: "tabs" }, ["sprint", "tasks", "reminders"].map((t) => /* @__PURE__ */ import_react.default.createElement("button", { key: t, className: `tab ${tab === t ? "tab-active" : ""}`, onClick: () => setTab(t) }, t === "sprint" ? "\u23F1 Sprint" : t === "tasks" ? `\u2705 Tasks${tasks.length ? ` ${doneTasks}/${tasks.length}` : ""}` : "\u{1F514} Reminders"))), tab === "sprint" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement(Ring, { pct, timeLeft, running: sprint.running }), !sprint.running && /* @__PURE__ */ import_react.default.createElement("div", { className: "presets-scroll" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "presets" }, PRESETS.map((p) => /* @__PURE__ */ import_react.default.createElement(
+    const streakToday = state.lastSprintDate === todayStr() ? state.sprintsToday : 0;
+    return /* @__PURE__ */ import_react.default.createElement("div", { className: `app ${theme}` }, toast && /* @__PURE__ */ import_react.default.createElement("div", { className: "toast" }, toast), /* @__PURE__ */ import_react.default.createElement("header", { className: "hdr" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "hdr-left" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "logo" }, "\u26A1 SprintBuddy"), /* @__PURE__ */ import_react.default.createElement("span", { className: "clock" }, clock)), /* @__PURE__ */ import_react.default.createElement("button", { className: "icon-btn", onClick: () => setTheme((t) => t === "dark" ? "light" : "dark") }, theme === "dark" ? "\u2600\uFE0F" : "\u{1F319}")), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-bar" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-label" }, "Today"), /* @__PURE__ */ import_react.default.createElement("div", { className: "streak-dots" }, [1, 2, 3, 4, 5, 6, 7, 8].map((n) => /* @__PURE__ */ import_react.default.createElement("span", { key: n, className: `dot ${n <= streakToday ? "dot-on" : ""}` }))), /* @__PURE__ */ import_react.default.createElement("span", { className: "streak-count" }, streakToday, " sprint", streakToday !== 1 ? "s" : "")), /* @__PURE__ */ import_react.default.createElement("nav", { className: "tabs" }, ["sprint", "tasks", "reminders"].map((t) => /* @__PURE__ */ import_react.default.createElement("button", { key: t, className: `tab ${tab === t ? "tab-active" : ""}`, onClick: () => setTab(t) }, t === "sprint" ? "\u23F1 Sprint" : t === "tasks" ? `\u2705 Tasks${tasks.length ? ` ${doneTasks}/${tasks.length}` : ""}` : "\u{1F514} Reminders"))), tab === "sprint" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement(Ring, { pct, timeLeft, phase: state.phase }), state.phase === "break" && /* @__PURE__ */ import_react.default.createElement("div", { className: "break-card" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "break-title" }, "\u2615 Break time"), /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Stretch, hydrate, rest your eyes."), /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-outline", onClick: handleSkipBreak }, "Skip Break \u2192")), state.phase === "idle" && /* @__PURE__ */ import_react.default.createElement(import_react.default.Fragment, null, /* @__PURE__ */ import_react.default.createElement("div", { className: "config-row" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "config-label" }, "Sprint"), /* @__PURE__ */ import_react.default.createElement("div", { className: "presets-scroll" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "presets" }, SPRINT_PRESETS.map((p) => /* @__PURE__ */ import_react.default.createElement(
       "button",
       {
         key: p.value,
-        className: `chip ${selectedDuration === p.value ? "chip-active" : ""}`,
-        onClick: () => setSelectedDuration(p.value)
+        className: `chip ${selectedSprint === p.value ? "chip-active" : ""}`,
+        onClick: () => setSelectedSprint(p.value)
       },
       p.label
-    )))), sprint.running && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, Math.round(sprint.totalDuration / 60), "m sprint \xB7 sprint #", streakToday, " today \u{1F525}"), /* @__PURE__ */ import_react.default.createElement("div", { className: "actions" }, !sprint.running ? /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-green", onClick: handleStart }, "\u25B6 Start ", selectedDuration, "m Sprint") : /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-red", onClick: handleStop }, "\u25A0 Stop Sprint"))), tab === "tasks" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Your focus list for today. Check off as you go."), /* @__PURE__ */ import_react.default.createElement("div", { className: "input-row" }, /* @__PURE__ */ import_react.default.createElement(
+    ))))), /* @__PURE__ */ import_react.default.createElement("div", { className: "pomodoro-row" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "pomodoro-info" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "config-label" }, "\u{1F345} Pomodoro"), /* @__PURE__ */ import_react.default.createElement("span", { className: "hint", style: { textAlign: "left" } }, "Auto-start break after sprint")), /* @__PURE__ */ import_react.default.createElement(
+      "button",
+      {
+        className: `toggle ${state.pomodoroEnabled ? "toggle-on" : ""}`,
+        onClick: togglePomodoro
+      },
+      /* @__PURE__ */ import_react.default.createElement("span", { className: "toggle-knob" })
+    )), state.pomodoroEnabled && /* @__PURE__ */ import_react.default.createElement("div", { className: "config-row" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "config-label" }, "Break"), /* @__PURE__ */ import_react.default.createElement("div", { className: "presets-scroll" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "presets" }, BREAK_PRESETS.map((p) => /* @__PURE__ */ import_react.default.createElement(
+      "button",
+      {
+        key: p.value,
+        className: `chip ${selectedBreak === p.value ? "chip-active chip-break" : ""}`,
+        onClick: () => setSelectedBreak(p.value)
+      },
+      p.label
+    )))))), state.phase === "sprint" && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, Math.round(state.sprintDuration / 60), "m sprint", state.pomodoroEnabled ? ` \xB7 ${Math.round(state.breakDuration / 60)}m break next \u{1F345}` : "", streakToday > 0 ? ` \xB7 #${streakToday} today \u{1F525}` : ""), /* @__PURE__ */ import_react.default.createElement("div", { className: "actions" }, state.phase === "idle" && /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-green", onClick: handleStart }, "\u25B6 Start ", selectedSprint, "m Sprint"), state.phase === "sprint" && /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-red", onClick: handleStop }, "\u25A0 Stop Sprint"), state.phase === "break" && /* @__PURE__ */ import_react.default.createElement("button", { className: "btn btn-red", onClick: handleStop }, "\u25A0 End Session"))), tab === "tasks" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Your focus list for today. Check off as you go."), /* @__PURE__ */ import_react.default.createElement("div", { className: "input-row" }, /* @__PURE__ */ import_react.default.createElement(
       "input",
       {
         className: "field",
@@ -23802,7 +23846,7 @@
         onChange: (e) => setNewTask(e.target.value),
         onKeyDown: (e) => e.key === "Enter" && addTask()
       }
-    ), /* @__PURE__ */ import_react.default.createElement("button", { className: "add-btn", onClick: addTask }, "+")), /* @__PURE__ */ import_react.default.createElement("ul", { className: "task-list" }, tasks.length === 0 && /* @__PURE__ */ import_react.default.createElement("li", { className: "empty" }, "No tasks yet. Add one above \u2191"), tasks.map((t) => /* @__PURE__ */ import_react.default.createElement("li", { key: t.id, className: `task-item ${t.done ? "task-done" : ""}` }, /* @__PURE__ */ import_react.default.createElement("button", { className: "check-btn", onClick: () => toggleTask(t.id) }, t.done ? "\u2705" : "\u2B1C"), /* @__PURE__ */ import_react.default.createElement("span", { className: "task-text" }, t.text), /* @__PURE__ */ import_react.default.createElement("button", { className: "del-btn", onClick: () => deleteTask(t.id) }, "\u2715")))), tasks.length > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint", style: { textAlign: "center", marginTop: 8 } }, doneTasks, "/", tasks.length, " complete", doneTasks === tasks.length ? " \u{1F389} All done!" : "")), tab === "reminders" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Get a notification + sound at a specific time."), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Task name"), /* @__PURE__ */ import_react.default.createElement(
+    ), /* @__PURE__ */ import_react.default.createElement("button", { className: "add-btn", onClick: addTask }, "+")), /* @__PURE__ */ import_react.default.createElement("ul", { className: "task-list" }, tasks.length === 0 && /* @__PURE__ */ import_react.default.createElement("li", { className: "empty" }, "No tasks yet. Add one above \u2191"), tasks.map((t) => /* @__PURE__ */ import_react.default.createElement("li", { key: t.id, className: `task-item ${t.done ? "task-done" : ""}` }, /* @__PURE__ */ import_react.default.createElement("button", { className: "check-btn", onClick: () => toggleTask(t.id) }, t.done ? "\u2705" : "\u2B1C"), /* @__PURE__ */ import_react.default.createElement("span", { className: "task-text" }, t.text), /* @__PURE__ */ import_react.default.createElement("button", { className: "del-btn", onClick: () => deleteTask(t.id) }, "\u2715")))), tasks.length > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "hint", style: { marginTop: 4 } }, doneTasks, "/", tasks.length, " complete ", doneTasks === tasks.length && tasks.length > 0 ? "\u{1F389}" : "")), tab === "reminders" && /* @__PURE__ */ import_react.default.createElement("section", { className: "section" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "hint" }, "Get a notification + sound at a specific time."), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Task name"), /* @__PURE__ */ import_react.default.createElement(
       "input",
       {
         className: "field",
@@ -23811,23 +23855,7 @@
         onChange: (e) => setReminderName(e.target.value),
         onKeyDown: (e) => e.key === "Enter" && addReminder()
       }
-    ), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Remind me at"), /* @__PURE__ */ import_react.default.createElement("div", { className: "time-dropdowns" }, /* @__PURE__ */ import_react.default.createElement(
-      "select",
-      {
-        className: "time-select",
-        value: reminderHour,
-        onChange: (e) => setReminderHour(e.target.value)
-      },
-      HOURS.map((h) => /* @__PURE__ */ import_react.default.createElement("option", { key: h, value: String(h) }, String(h).padStart(2, "0")))
-    ), /* @__PURE__ */ import_react.default.createElement("span", { className: "time-colon" }, ":"), /* @__PURE__ */ import_react.default.createElement(
-      "select",
-      {
-        className: "time-select",
-        value: reminderMin,
-        onChange: (e) => setReminderMin(e.target.value)
-      },
-      MINUTES.map((m) => /* @__PURE__ */ import_react.default.createElement("option", { key: m, value: m }, m))
-    ), /* @__PURE__ */ import_react.default.createElement(
+    ), /* @__PURE__ */ import_react.default.createElement("label", { className: "label" }, "Remind me at"), /* @__PURE__ */ import_react.default.createElement("div", { className: "time-dropdowns" }, /* @__PURE__ */ import_react.default.createElement("select", { className: "time-select", value: reminderHour, onChange: (e) => setReminderHour(e.target.value) }, HOURS.map((h) => /* @__PURE__ */ import_react.default.createElement("option", { key: h, value: String(h) }, String(h).padStart(2, "0")))), /* @__PURE__ */ import_react.default.createElement("span", { className: "time-colon" }, ":"), /* @__PURE__ */ import_react.default.createElement("select", { className: "time-select", value: reminderMin, onChange: (e) => setReminderMin(e.target.value) }, MINUTES.map((m) => /* @__PURE__ */ import_react.default.createElement("option", { key: m, value: m }, m))), /* @__PURE__ */ import_react.default.createElement(
       "select",
       {
         className: "time-select time-period",
